@@ -8,6 +8,8 @@ import Test
 
 
 # Real generation: lower (`lb`) and upper (`ub`) bounds
+
+#KEEP THIS SYNTAX/POSSIBILITIE IN MIND : P_Gen_lb= SparseArrays.sparsevec(5:2:20, 10, N)  (may be useful for network with a lot of nods)
 P_Gen_lb = SparseArrays.sparsevec([1, 2, 3], [10, 10, 10], N) #P_Gen_lb est un vecteur de 9 éléments, chaque élement est un bus, index k = k_ième bus, ici on précise que les bus 1,2 et 3 ont une limite basse de génération de 10, et les autres 0
 #P_Gen_lb =[10,10,10,0,0,0,0,0,0]
 P_Gen_ub = SparseArrays.sparsevec([1, 2, 3], [250, 300, 270], N)
