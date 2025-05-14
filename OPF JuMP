@@ -1,0 +1,81 @@
+using JuMP
+import Clarabel
+import DataFrames
+import Ipopt
+import LinearAlgebra
+import SparseArrays
+import Test
+
+
+# Real generation: lower (`lb`) and upper (`ub`) bounds
+P_Gen_lb = SparseArrays.sparsevec([1, 2, 3], [10, 10, 10], N) #P_Gen_lb est un vecteur de 9 éléments, chaque élement est un bus, index k = k_ième bus, ici on précise que les bus 1,2 et 3 ont une limite basse de génération de 10, et les autres 0
+#P_Gen_lb =[10,10,10,0,0,0,0,0,0]
+P_Gen_ub = SparseArrays.sparsevec([1, 2, 3], [250, 300, 270], N)
+# Reactive generation: lower (`lb`) and upper (`ub`) bounds
+Q_Gen_lb = SparseArrays.sparsevec([1, 2, 3], [-5, -5, -5], N)
+Q_Gen_ub = SparseArrays.sparsevec([1, 2, 3], [300, 300, 300], N)
+# Power demand levels (real, reactive, and complex form)
+P_Demand = SparseArrays.sparsevec([5, 7, 9], [54, 60, 75], N)
+Q_Demand = SparseArrays.sparsevec([5, 7, 9], [18, 21, 30], N)
+S_Demand = P_Demand + im * Q_Demand
+
+
+branch_data = DataFrames.DataFrame([
+    (1, 4, 0.0, 0.0576, 0.0),
+    (4, 5, 0.017, 0.092, 0.158),
+    (6, 5, 0.039, 0.17, 0.358),
+    (3, 6, 0.0, 0.0586, 0.0),
+    (6, 7, 0.0119, 0.1008, 0.209),
+    (8, 7, 0.0085, 0.072, 0.149),
+    (2, 8, 0.0, 0.0625, 0.0),
+    (8, 9, 0.032, 0.161, 0.306),
+    (4, 9, 0.01, 0.085, 0.176),
+]);
+DataFrames.rename!(branch_data, [:F_BUS, :T_BUS, :BR_R, :BR_X, :BR_Bc])  #From bus, To_bus, Branch_real_resistance, branch_imaginary_resistance_X (reactance), branch_line_charging_suscpetance (THESE DATE CAME FROM A MATPOWER MODEL)
+
+base_MVA = 100;
+M = size(branch_data, 1)
+
+A =  SparseArrays.sparse(branch_data.F_BUS, 1:M, 1, N, M) + SparseArrays.sparse(branch_data.T_BUS, 1:M, -1, N, M)
+
+z = (branch_data.BR_R .+ im * branch_data.BR_X) / base_MVA; #impedance vector
+
+Y_0 = A * SparseArrays.spdiagm(1 ./ z) * A'; #bus admittance matrix
+y_sh = 1 / 2 * (im * branch_data.BR_Bc) * base_MVA;
+Y_sh = SparseArrays.spdiagm(LinearAlgebra.diag(A * SparseArrays.spdiagm(y_sh) * A'),); #shunt admittance matrix
+Y = Y_0 + Y_sh; #true admittance matrix
+
+
+#creation du modèle
+
+model = Model(Ipopt.Optimizer)
+set_silent(model) #if we set silent we won't print the output of the solver
+
+@variable(model, S_G[i in 1:N] in ComplexPlane(), lower_bound = P_Gen_lb[i] + Q_Gen_lb[i] * im, upper_bound = P_Gen_ub[i] + Q_Gen_ub[i] * im)
+@variable(model, V[1:N] in ComplexPlane(), start = 1.0 + 0.0im)
+
+@constraint(model, [i in 1:N], 0.9^2 <= real(V[i])^2 + imag(V[i])^2 <= 1.1^2)
+@constraint(model, imag(V[1]) == 0); #we make V1 the angle reference. It's angle is equal to zero because every angle are calculated on his phase. Hence V1 is absolutely real (and so Q1 = 0?)
+@constraint(model, real(V[1]) >= 0);
+@constraint(model, S_G - S_Demand .== V .* conj(Y * V)) #Physical law : conservation of the power. Production - demand - exchange_power = 0 (we need the true admittance matrix for that, because it's the Ohm's law in it's complex version)
+
+P_G = real(S_G)
+
+@objective(model,Min,
+    (0.11 * P_G[1]^2 + 5 * P_G[1] + 150) +                  #we want to minimize the sum of the cost function of each generator (just an example,
+    (0.085 * P_G[2]^2 + 1.2 * P_G[2] + 600) +
+    (0.1225 * P_G[3]^2 + P_G[3] + 335),
+);
+
+@constraint(model, sum(P_G) >= sum(P_Demand)) #the active power must meet or exceed the real power demand
+
+optimize!(model)
+assert_is_solved_and_feasible(model)
+solution_summary(model)
+
+DataFrames.DataFrame(;
+    Bus = 1:N,
+    ComplexPowerGen = round.(value.(S_G); digits = 2),
+    VoltageMagnitude = round.(abs.(value.(V)); digits = 2),
+    VoltageAngle_Deg = round.(rad2deg.(angle.(value.(V))); digits = 2),
+)
