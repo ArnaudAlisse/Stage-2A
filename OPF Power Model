@@ -1,0 +1,18 @@
+#WE NEED A NETWORK DATA FILES IN .m (so we need MATPOWER)
+
+using PowerModels
+using Ipopt
+
+result  = solve_ac_opf("matpower/case3.m", Ipopt.Optimizer) #renvoi un dictionnaire avec TOUTES les infos. La vraie difficulté est de bien chercher dans ce dictionnaire pour être sur que tout colle.
+#solve_dc_opf("matpower/case3.m", Ipopt.Optimizer)
+
+
+#MULTIPLE POWERMODEL SOLVE WHILE MODIFYING THE NETWORK
+
+network_data = PowerModels.parse_file("matpower/case3.m")
+solve_opf(network_data, ACPPowerModel, Ipopt.Optimizer)
+
+network_data["load"]["3"]["pd"] = 0.0
+network_data["load"]["3"]["qd"] = 0.0
+
+solve_opf(network_data, ACPPowerModel, Ipopt.Optimizer)
