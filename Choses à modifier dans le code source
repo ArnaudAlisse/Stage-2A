@@ -1,0 +1,18 @@
+To determine the max capacity of power we can import from the offshore power plant or the minimal number of cable needed, we need another objective function.
+
+Max power capacity that we can import :
+
+
+
+Minimal number of cable (and which one) : Objective function = min ( sum ( sum ( C1_ij*Z_ij + C2_ij*Y_ij) for j >i) for i = 1:N) 
+With N the number of bus, C1_ij the cost of a DC line, C2_ij the cost of a super conducting line, Z_ij and Y_ij = 0 or 1, depend of the state of the switch on the branch between the bus i and the bus j. 
+If Z_ij (or Y_ij) = 0 at the end, we won't build this branch, if it's 1, we will build it.
+
+
+Constraint : 
+
+All the constrait of PowerFlow and optimal Power flow already in PowerModel
++
+0<=Z_ij + Y_ij<=1
+
+We must find a better way to write the sums (like taking j in the bus connected to i on which we've put a switch, hence, we can have some sets branch, and some optionnal branchs.)
