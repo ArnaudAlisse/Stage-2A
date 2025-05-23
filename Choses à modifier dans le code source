@@ -16,3 +16,72 @@ All the constrait of PowerFlow and optimal Power flow already in PowerModel
 0<=Z_ij + Y_ij<=1
 
 We must find a better way to write the sums (like taking j in the bus connected to i on which we've put a switch, hence, we can have some sets branch, and some optionnal branchs.)
+
+
+
+Let's copy the objective function "objective_min_fuel_cost" and modify what we need to.
+
+
+#IN THE OBJECTIVE FILE
+
+function objective_min_number_cable(pm::AbstractPowerModel; kwargs...)
+    expression_pg_cost(pm; kwargs...) #I think we can (we even must given that they are constraint) let that as it is. But then we must add a constraint.
+    
+    JuMP.@constraint(pm.model, 0<=Z_$i$j + Y_$i$j <= 1 for i = 1:N for j = i+1:N )  #Not the best way, but at least we check every branch possible one time. It's okay for a low number of bus but we MUST find a way to make j varie only among the bus connected (optionnaly) to the bus i.
+
+    return JuMP.@objective(pm.model, Min,
+        #sum(
+        #    sum( var(pm, n, :pg_cost, i) for (i,gen) in nw_ref[:gen])
+        #for (n, nw_ref) in nws(pm))
+
+
+        sum(
+            sum( var(pm, n, :cable_cost, i) for (i,switch) in nw_ref[:switch])   #something like that ? I'm insanely lost
+        for (n, nw_ref) in nws(pm))
+    )
+end
+
+
+
+
+#IN THE OPF FILE
+
+function build_toy_opf(pm::AbstractPowerModel)
+    variable_bus_voltage(pm)
+    variable_gen_power(pm)
+    variable_branch_power(pm)
+    variable_dcline_power(pm)
+    variable_switch_state(pm)  #we must also define it in the variable file like the 4 up (I've look into it, not gonna lie it's currently too hard for me to solve that in 2 weeks..) (after re-looking into it, maybe even in two month, I need a huge understandind of Julia, powermodel, jump and all these)
+
+    objective_min_number_cable(pm) #and maybe we don't need to change anything more, they are mostly constraint.
+
+    constraint_model_voltage(pm)
+
+    for i in ids(pm, :ref_buses)
+        constraint_theta_ref(pm, i)
+    end
+
+    for i in ids(pm, :bus)
+        constraint_power_balance(pm, i)
+    end
+
+    for i in ids(pm, :branch)
+        constraint_ohms_yt_from(pm, i)
+        constraint_ohms_yt_to(pm, i)
+
+        constraint_voltage_angle_difference(pm, i)
+
+        constraint_thermal_limit_from(pm, i)
+        constraint_thermal_limit_to(pm, i)
+    end
+
+    for i in ids(pm, :dcline)
+        constraint_dcline_power_losses(pm, i)
+    end
+end
+
+
+
+
+
+
