@@ -1,0 +1,32 @@
+using Pkg
+using PowerModels
+using Ipopt
+
+
+
+
+network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
+display(network_data) # raw dictionary
+PowerModels.print_summary(network_data) # quick table-like summary
+PowerModels.component_table(network_data, "bus", ["vmin", "vmax"]) # component data in matrix form
+
+for k = 1:9
+    network_data["branch"]["$k"]["br_status"]=1
+end
+
+network_data["switch"]=Dict("$k"=>Dict("f_bus"=>1,"t_bus"=>1,"state"=>0,"thermal_rating"=>1000, "current_rating"=>1000, "psw"=>10, "qsw"=>10, "status" =>1) for k = 1:9)
+
+for k =0:2
+    network_data["switch"]["$(3*k+1)"]["f_bus"] = k+1
+    network_data["switch"]["$(3*k+1)"]["t_bus"] = 4
+
+    network_data["switch"]["$(3*k+2)"]["f_bus"] = k+1
+    network_data["switch"]["$(3*k+2)"]["t_bus"] = 5
+
+    network_data["switch"]["$(3*k+3)"]["f_bus"] = k+1
+    network_data["switch"]["$(3*k+3)"]["t_bus"] = 6
+end
+
+
+result = PowerModels._solve_opf_sw(network_data,ACPPowerModel, Ipopt.Optimizer)
+PowerModels.validate_data(network_data)
