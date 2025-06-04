@@ -1,64 +1,77 @@
 function mpc = toy
 
-%Still some issues, right now the parameters are bullshit so it doens't find a solution with PowerModels, but the syntax is good. 
-%Issues with the DC part, I believe the issue is a lack of informations on the converters "Pancrated" miss and all. 
-
+%It currently work for the tnep part.
 
 mpc.version = '2';
 mpc.baseMVA = 100.0;
 
 %	bus_i	type	Pd	Qd	Gs	Bs	area	Vm	Va	baseKV	zone	Vmax	Vmin
 mpc.bus = [
-  1	 3	 5	   0.0	 0.0	 0.0	 1	    1.10000	   -0.00000	 240.0	 1	    1.10000	    0.90000;
+    1	 3	 5	     0.0	 0.0	 0.0	 1	    1.10000	   -0.00000	 240.0	 1	    1.10000	    0.90000;
 	2	 2	 15.0	 2.0	 0.0	 0.0	 1	    0.92617	    7.25883	 240.0	 1	    1.10000	    0.90000;
 	3	 2	 15.0	 0.0	 0.0	 0.0	 1	    0.90000	  -17.26710	 240.0	 2	    1.10000	    0.90000;
-  4	 1	 30.0	 10.0	 0.0	 0.0	 1	    1.10000	   -0.00000	 240.0	 1	    1.10000	    0.90000;
+    4	 1	 30.0	 10.0	 0.0	 0.0	 1	    1.10000	   -0.00000	 240.0	 1	    1.10000	    0.90000;
 	5	 1	 20.0	 4.0	 0.0	 0.0	 1	    0.92617	    7.25883	 240.0	 1	    1.10000	    0.90000;
 	6	 1	 25.0	 10.0	 0.0	 0.0	 1	    0.90000	  -17.26710	 240.0	 2	    1.10000	    0.90000;
-  7	 1	 30.0	 0.0	 0.0	 0.0	 1	    1.10000	   -0.00000	 240.0	 1	    1.10000	    0.90000;
+    7	 1	 30.0	 0.0	 0.0	 0.0	 1	    1.10000	   -0.00000	 240.0	 1	    1.10000	    0.90000;
 	8	 1	 10.0	 20.0	 0.0	 0.0	 1	    0.92617	    7.25883	 240.0	 1	    1.10000	    0.90000;
 	9	 1	 25.0	 20.0	 0.0	 0.0	 1	    0.90000	  -17.26710	 240.0	 2	    1.10000	    0.90000;
     
 ];
 
 %% generator data
-%	bus	Pg      Qg	Qmax	Qmin	Vg	mBase       status	Pmax	Pmin	pc1 pc2 qlcmin qlcmax qc2min qc2max ramp_agc ramp_10 ramp_30 ramp_q apf
+%	bus	Pg            Qg	Qmax	Qmin	Vg	mBase       status	Pmax	Pmin	pc1 pc2 qlcmin qlcmax qc2min qc2max ramp_agc ramp_10 ramp_30 ramp_q apf
 mpc.gen = [
-	1	 130 -7  48.0	   -30.0	 1.1	     100.0	 1	 150.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0;
-	2	 80  -8	 101.0	 -30.0	 0.92617	 100.0	 1	 260.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0;
-	3	 30  -5  183.0	 -30.0	 0.9	     100.0	 1	 200.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0	 0.0;
+	1	 30.0	     30.0	 30.0	 -30.0	 1.07762	 100.0	 1	 40.0	 0.0;
+	2	 70.0	     127.5	 127.5	 -127.5	 1.07762	 100.0	 1	 170.0	 0.0;
+	3	 85.0	     390.0	 390.0	 -390.0	 1.1	     100.0	 1	 520.0	 0.0;
 ];
 
 mpc.gencost = [
-	2	 1.0	 0.0	 3	   0	   0.01	   0;
-	2	 1.0	 0.0	 3	   0	   0.01    0;
-	2	 1.0	 0.0	 3	   0	   0.01	   0;
+	2	 1.0	 0.0	 3	   0	   1.0	   0;
+	2	 10.0	 0.0	 3	   0	   2.0     0;
+	2	 20.0	 0.0	 3	   0	   4.0	   0;
 ];
 %% branch data
 %	fbus	tbus	r	x	b	rateA	rateB	rateC	ratio	angle	status angmin angmax
 mpc.branch = [
-	  4	 5	 0.042	 0.03	 0.3	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0;
-   	5	 6   0.042	 0.02	 0.3	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0;
-    6	 9	 0.042	 0.01	 0.3	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0;
-    9	 8	 0.042	 0.03	 0.3	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0;
+	4	 5	 0.003	 0.03	 0.00674	 240.0	 240.0	 240.0	 0.0	 0.0	 1	 -30.0	 30.0;
+   	5	 6   0.003	 0.03	 0.00674	 240.0	 240.0	 240.0	 0.0	 0.0	 1	 -30.0	 30.0;
+    6	 9	 0.003	 0.03	 0.00674	 240.0	 240.0	 240.0	 0.0	 0.0	 1	 -30.0	 30.0;
+    9	 8	 0.003	 0.03	 0.00674	 240.0	 240.0	 240.0	 0.0	 0.0	 1	 -30.0	 30.0;
     8	 7	 0.042	 0.02	 0.3	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0;
     7	 4	 0.042	 0.05	 0.3	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0;
 ];
 
-%I do not know the caracteristics of the cable we may use.
+
 
 %column_names%	f_bus	t_bus	br_r	br_x	br_b	rate_a	rate_b	rate_c	tap	shift	br_status	angmin	angmax	construction_cost
 mpc.ne_branch = [
 	1	 4	 0.165	 0.012	 0.45	 1000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0	 1;
 	1	 5   0.025	 0.025	 0.17	 50.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0	 1;
 	1	 6	 0.025	 0.09	 0.27	 500.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0	 1;
-  2	 1	 0.065	 0.062	 0.05	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0	 1;
+    2	 1	 0.065	 0.062	 0.05	 9000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0	 1;
 	3	 1	 0.225	 0.005	 0.97	 2000.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0	 1;
-  2	 3	 0.05	 0.35	 0.01	 50.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0    1;
+    2	 3	 0.05	 0.35	 0.01	 50.0	 0.0	 0.0	 0.0	 0.0	 1	 -30.0	 30.0    1;
 ];
 
 
+
+
+%% dcline data
+%	fbus	tbus	status	Pf	Pt	Qf	Qt	Vf	Vt	Pmin	Pmax	QminF	QmaxF	QminT	QmaxT	loss0	loss1
+mpc.dcline = [
+	3	5	1	10	8.9	99.9934	-10.4049	1.1	1.05304	10	100 	-100	100	-100 100	1	0.01;
+];
+
+%% dcline cost data
+%	2	startup	shutdown	n	c(n-1)	...	c0
+mpc.dclinecost = [
+	2	 0.0	 0.0	 3	   0.000000	  40.000000	   0.000000;
+];
+
 %I'm not sure to undestand all that the right way
+%Quite sure what I'm doing here is imply a logic fault, by forcing 6 buses to be dc i'm maybe constraining the problem too much?
 
 %% existing dc bus data
 %column_names%   busdc_i grid    Pdc     Vdc     basekVdc    Vdcmax  Vdcmin  Cdc
