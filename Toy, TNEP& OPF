@@ -24,9 +24,9 @@ minlp_solver = JuMP.optimizer_with_attributes(
 
 network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
 PowerModelsACDC.process_additional_data!(network_data)
-
-result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
 s = Dict("output" => Dict("branch_flows" => true), "conv_losses_mp" => true)
+result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
+
 #result = run_tnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
 
 
@@ -35,19 +35,40 @@ L1 = copy(length(network_data["ne_branch"]))
 global b=1
 
 for k = 1:L1
-
+    #for k in PowerModels.ids(network_data, :branch)
        if result["solution"]["ne_branch"]["$k"]["built"] ==1
-            
-            println("oui")
-            a=length(network_data["branch"])+b
-            network_data["branch"]["$a"] = copy(network_data["ne_branch"]["$k"])
-            network_data["branch"]["$a"]["rate_b"] = network_data["branch"]["$a"]["rate_a"] 
-            network_data["branch"]["$a"]["rate_c"] = network_data["branch"]["$a"]["rate_a"]  
-            network_data["branch"]["$a"]["source_id"] = Any["branch", a] 
-            network_data["branch"]["$a"]["index"] = a
-            delete!(network_data["branch"]["$a"],"construction_cost")
-            global b=b+1
+            f = network_data["ne_branch"]["$k"]["f_bus"]
+            t = network_data["ne_branch"]["$k"]["t_bus"]
+            g = 0
+            for i in keys(network_data["branch"])
+                if network_data["branch"]["$i"]["f_bus"] == f && network_data["branch"]["$i"]["t_bus"] == t
+                    g=1
+                    println("The AC branch connecting the buses $f and $t cannot be build because of there is already an AC branch connecting these buses")
+                else 
+                    continue
+                end
+            end
 
+            for i in keys(network_data["branchdc"])
+                if network_data["branchdc"]["$i"]["fbusdc"] == f && network_data["branchdc"]["$i"]["tbusdc"] == t
+                    g=1
+                    println("The AC branch connecting the buses $f and $t cannot be build because of there is already a DC branch connecting these buses")
+                else 
+                    continue
+                end
+            end
+
+            if g == 0
+                println("The AC branch connecting the bus $f and the bus $t has been build")
+                a=length(network_data["branch"])+b
+                network_data["branch"]["$a"] = copy(network_data["ne_branch"]["$k"])
+                network_data["branch"]["$a"]["rate_b"] = network_data["branch"]["$a"]["rate_a"] 
+                network_data["branch"]["$a"]["rate_c"] = network_data["branch"]["$a"]["rate_a"]  
+                network_data["branch"]["$a"]["source_id"] = Any["branch", a] 
+                network_data["branch"]["$a"]["index"] = a
+                delete!(network_data["branch"]["$a"],"construction_cost")
+                global b=b+1
+            end
             #We added all the terms needed to the good functionnement of "solve_opf"
             #And removed "construction_cost" that wasn't needed.
        end
@@ -62,13 +83,38 @@ global b=1
 
 for k = 1:L2
        if result["solution"]["branchdc_ne"]["$k"]["isbuilt"]== 1
-            println("oui")
-            a=length(network_data["branchdc"])+b
-            network_data["branchdc"]["$a"] = copy(network_data["branchdc_ne"]["$k"])
-            network_data["branchdc"]["$a"]["source_id"] = [(2)]  
-            network_data["branchdc"]["$a"]["index"] = a
-            delete!(network_data["branchdc"]["$a"],"cost")
-            global b=b+1
+
+
+            f = network_data["branchdc_ne"]["$k"]["fbusdc"]
+            t = network_data["branchdc_ne"]["$k"]["tbusdc"]
+            g = 0
+            for i in keys(network_data["branch"])
+                if network_data["branch"]["$i"]["f_bus"] == f && network_data["branch"]["$i"]["t_bus"] == t
+                    g=1
+                    println("The DC branch connecting the buses $f and $t cannot be build because of there is already an AC branch connecting these buses")
+                else 
+                    continue
+                end
+            end
+            
+            for i  in keys(network_data["branchdc"])
+                if network_data["branchdc"]["$i"]["fbusdc"] == f && network_data["branchdc"]["$i"]["tbusdc"] == t
+                    g=1
+                    println("The DC branch connecting the buses $f and $t cannot be build because of there is already a DC branch connecting these buses")
+                else 
+                    continue
+                end
+            end
+
+            if g ==0    
+                println("The DC branch connecting the bus $f and the bus $t has been build")
+                a=length(network_data["branchdc"])+b
+                network_data["branchdc"]["$a"] = copy(network_data["branchdc_ne"]["$k"])
+                network_data["branchdc"]["$a"]["source_id"] = [(2)]  
+                network_data["branchdc"]["$a"]["index"] = a
+                delete!(network_data["branchdc"]["$a"],"cost")
+                global b=b+1
+            end
        end
 end
 
