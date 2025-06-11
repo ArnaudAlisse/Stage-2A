@@ -7,6 +7,7 @@ using Juniper
 using HiGHS
 using HiGHS_jll
 
+#The idea : We run a TNEP simulations to know which branch should be build. Then we can update "network_data" with the result of this simulation, and finaly run an OPF on "network_data" that has been updated
 
 minlp_solver = JuMP.optimizer_with_attributes(
     Juniper.Optimizer,
@@ -17,32 +18,66 @@ minlp_solver = JuMP.optimizer_with_attributes(
     ),
     "log_levels"=>[],
 )
+
+
+
+
 network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
+PowerModelsACDC.process_additional_data!(network_data)
 
-result = solve_tnep(network_data, ACPPowerModel, minlp_solver) #solve_tnep call build_tnep
+result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
+s = Dict("output" => Dict("branch_flows" => true), "conv_losses_mp" => true)
+#result = run_tnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
 
 
+
+L1 = copy(length(network_data["ne_branch"]))
 global b=1
-for k = 1:6
+
+for k = 1:L1
+
        if result["solution"]["ne_branch"]["$k"]["built"] ==1
+            
             println("oui")
-            a=6+b
+            a=length(network_data["branch"])+b
             network_data["branch"]["$a"] = copy(network_data["ne_branch"]["$k"])
             network_data["branch"]["$a"]["rate_b"] = network_data["branch"]["$a"]["rate_a"] 
             network_data["branch"]["$a"]["rate_c"] = network_data["branch"]["$a"]["rate_a"]  
-            network_data["branch"]["$a"]["source_id"] = Any["branch", a]  
+            network_data["branch"]["$a"]["source_id"] = Any["branch", a] 
             network_data["branch"]["$a"]["index"] = a
             delete!(network_data["branch"]["$a"],"construction_cost")
             global b=b+1
 
             #We added all the terms needed to the good functionnement of "solve_opf"
             #And removed "construction_cost" that wasn't needed.
-
        end
 end
 
+#Add a if in the previous loop for the constraint.
+
+
+L2 = copy(length(network_data["branchdc_ne"]))
+global b=1
+#It's also possible to code it in a way so it works even if there is no already built branchdc. I just need few more lines and a if, will do that later.
+
+for k = 1:L2
+       if result["solution"]["branchdc_ne"]["$k"]["isbuilt"]== 1
+            println("oui")
+            a=length(network_data["branchdc"])+b
+            network_data["branchdc"]["$a"] = copy(network_data["branchdc_ne"]["$k"])
+            network_data["branchdc"]["$a"]["source_id"] = [(2)]  
+            network_data["branchdc"]["$a"]["index"] = a
+            delete!(network_data["branchdc"]["$a"],"cost")
+            global b=b+1
+       end
+end
+
+
+
+
 #So, we built the branchs we wanted to built based on a economic point of view (TNEP). lets optmize their use by doing an OPF.
-resultOPF = solve_opf(network_data, ACPPowerModel, minlp_solver)
+
+resultOPF = run_acdcopf(network_data, DCPPowerModel, minlp_solver; setting = s)
 
 
 #If this simple model work, I'm gonna try with the DC part.
