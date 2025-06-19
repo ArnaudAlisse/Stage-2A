@@ -31,41 +31,105 @@ A2 = []
 A3 = []
 A4 = []
 A5 = []
+A6 = []
+A7 = []
+A8 = []
+A9 = []
 
 
-for j=0.2:0.2:3
+for j=0.2:0.2:1.6
     local network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
     PowerModelsACDC.process_additional_data!(network_data)
     network_data["load"]["7"]["pd"] = j/2
-    network_data["load"]["4"]["pd"] = j/2
+    network_data["load"]["4"]["pd"] = 0.4
     result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
 
-    new_lines = count_new_lines(network_data, result) #this function return the number of branches (AC or DC) that are going to be build
+
+    
+    new_lines = count_new_lines(network_data, result) #This function return the number of branches (AC or DC) that are going to be build
     uptdate_network(network_data, result) #This function define in another file will uptdate the network based on the result of the TNEP. For example, if a DC_branch should be build according to the result of TNEP, then it will be added to the network as an effective branch.
+    total_pd, total_qd, total_pg, total_qg = total_demand_and_generation(network_data) 
+
 
     #So, we built the branchs we wanted to built based on a economic point of view (TNEP). lets optmize their use by doing an OPF.
     resultOPF = run_acdcopf(network_data, DCPPowerModel, minlp_solver; setting = s)
-
-    #index, max_power_line = max_power_line(resultOPF) #for the line with the max power flowing through this function return the index of the line and the power flowing through 
+    C = Who_is_near_congestion(network_data,resultOPF)
+    
+    index_min, index_max, max_flow, min_flow = max_power_line(resultOPF) #for the line with the max power flowing through this function return the index of the line and the power flowing through 
 
     push!(A1, network_data["load"]["7"]["pd"])
     push!(A2, network_data["load"]["4"]["pd"])
     push!(A3,resultOPF["solution"]["branch"]["2"]["pf"])
     push!(A4,result["objective"])
     push!(A5,resultOPF["objective"])
+    push!(A6,C) #row is a line, column is the ratio of the value of the power flowing through this line and of its rate_A
+    push!(A7, [min_flow,max_flow])
+    push!(A8, [index_min, index_max])
+    push!(A9, [total_pd, total_qd, total_pg, total_qg])
+
+
     println(j)
+
+
 
 end
 
-#plot(A1,[A2 A3 A4])
-#title!("Evolution of some varialbe in function of a parameter (we need to decide which parameter)")
-#xlabel!("The initial value of the parameter")
-#ylabel!("The final value of somes variables")
 
-p1 = plot(A1[1:length(A4)], A4, title = "Cost of investment (TNEP) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€)")
-p2 = plot(A1[1:length(A5)], A5, title = "Cost of functionnement (OPF) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€/MWh)")
-p3 = plot(A2[1:length(A4)], A4, title = "Cost of investment (TNEP) in function of load of bus 4", xlabel = "Initial value of load bus 4 (MW)", ylabel = "Cost (€)")
-p4 = plot(A2[1:length(A5)], A5, title = "Cost of functionnement (OPF) in function of load of bus 4", xlabel = "Initial value of load bus 4 (MW)", ylabel = "Cost (€/MWh)")
-plot(p1, p2, p3, p4, layout=(2,2), legend=false)
+B1 = []
+B2 = []
+B3 = []
+B4 = []
+B5 = []
+B6 = []
+B7 = []
+B8 = []
+B9 = []
+B10 = []
+B11 = []
+B12 = []
+B13 = []
+B14 = []
+B15 = []
+B16 = []
+B17 = []
+
+
+for k = 1:8
+    push!(B1, A6[k][1])
+    push!(B2, A6[k][2])
+    push!(B3, A6[k][3])
+    push!(B4, A6[k][4])
+    push!(B5, A6[k][5])
+    push!(B6, A6[k][6])
+    push!(B7, A6[k][7])
+    push!(B8, A6[k][8])
+    push!(B9, A6[k][9])
+    push!(B10,A7[k][1])
+    push!(B11,A7[k][2])
+    push!(B12,A8[k][1])
+    push!(B13,A8[k][2])
+    push!(B14,A9[k][1])
+    push!(B15,A9[k][2])
+    push!(B16,A9[k][3])
+    push!(B17,A9[k][4])
+end
+
+
+
+
+
+p1 = plot(A1, A4, title = "Cost of investment (TNEP) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p2 = plot(A1, A5, title = "Cost of functionnement (OPF) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€/MWh)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p3 = plot(A1, [B1, B2, B3, B4, B5, B6, B7, B8, B9], title = "Is a line near congestion?", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Power demand/rate_A", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p4 = plot(A1, [B10,B11], label = ["min" "max"], title = "Min and Max power flowing through lines", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Min and Max (MWh)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p5 = plot(A1, [B12,B13],label = ["index_min" "index_max"], title = "index of branch for min and max power", xlabel = "Initial value of load bus 7 (MW)", ylabel = "index", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p6 = plot(A1, [B14, B15, B16, B17],label = ["total_pd" "total_qd" "total_pg" "total_qg"] , title = "Total power demand and power generated", xlabel = "Initial value of load bus 7 (MW)", ylabel = "MWh", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+
+plot(p1, p2, p3, p4,p5,p6, layout=(3,2), legend=true,size=(2400,1900))
 
 #Well, we can plot quite anything but I don't really know what I should plot in function of what
+
+#IMO we are execeding few things, try to asses max power and see which constraint we break.
+
+#savefig("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\screen\\plot.png")
+
