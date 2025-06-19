@@ -8,7 +8,11 @@ using Juniper
 using HiGHS
 using HiGHS_jll
 
+
+include("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\Programmes Julia\\some_functions.jl")
 #The idea : We run a TNEP simulations to know which branch should be build. Then we can update "network_data" with the result of this simulation, and finaly run an OPF on "network_data" that has been updated
+
+
 
 minlp_solver = JuMP.optimizer_with_attributes(
     Juniper.Optimizer,
@@ -20,73 +24,8 @@ minlp_solver = JuMP.optimizer_with_attributes(
     "log_levels"=>[],
 )
 
-
-function Is_there_already_an_AC_branc(f,t,network_data)
-
-    for i in keys(network_data["branch"])
-        if network_data["branch"]["$i"]["f_bus"] == f && network_data["branch"]["$i"]["t_bus"] == t
-            return 1
-            println("The AC branch connecting the buses $f and $t cannot be build because of there is already an AC branch connecting these buses")
-        elseif network_data["branch"]["$i"]["f_bus"] == t && network_data["branch"]["$i"]["t_bus"] == f #Because of the bidirectionnality of the branches
-            return 1
-            println("The AC branch connecting the buses $f and $t cannot be build because of there is already an AC branch connecting these buses")
-        else
-            continue
-        end
-    end
-    return 0
-end
-
-function Is_there_already_a_DC_branc(f,t,network_data)
-
-    for i  in keys(network_data["branchdc"])
-        if network_data["branchdc"]["$i"]["fbusdc"] == f && network_data["branchdc"]["$i"]["tbusdc"] == t
-            return true
-            println("The DC branch connecting the buses $f and $t cannot be build because of there is already a DC branch connecting these buses")
-        elseif network_data["branchdc"]["$i"]["fbusdc"] == t && network_data["branchdc"]["$i"]["tbusdc"] == f
-            return true
-            println("The DC branch connecting the buses $f and $t cannot be build because of there is already a DC branch connecting these buses")
-        else 
-            continue
-        end
-    end
-    return false
-end
-
-function build_new_AC_branch(f,t,network_data,b,k)
-    println("The AC branch connecting the bus $f and the bus $t has been build")
-    a=length(network_data["branch"])+b #The b is needed to not give an already given ID to the new branch.
-    network_data["branch"]["$a"] = copy(network_data["ne_branch"]["$k"])
-    network_data["branch"]["$a"]["rate_b"] = network_data["branch"]["$a"]["rate_a"] #We copy the rate_a for each rate. In fact, PowerModels only use the rate_a so it doens't really matter
-    network_data["branch"]["$a"]["rate_c"] = network_data["branch"]["$a"]["rate_a"]  
-    network_data["branch"]["$a"]["source_id"] = Any["branch", a] 
-    network_data["branch"]["$a"]["index"] = a
-    delete!(network_data["branch"]["$a"],"construction_cost")
-            #We added all the terms needed to the good functionnement of "solve_opf"
-            #And removed "construction_cost" that wasn't needed.
-end
-
-
-
-function build_new_DC_branch(f,t,network_data,b,k)
-    println("The DC branch connecting the bus $f and the bus $t has been build")
-    a=length(network_data["branchdc"])+b
-    network_data["branchdc"]["$a"] = copy(network_data["branchdc_ne"]["$k"])
-    network_data["branchdc"]["$a"]["source_id"] = [(2)]  
-    network_data["branchdc"]["$a"]["index"] = a
-    delete!(network_data["branchdc"]["$a"],"cost")
-end
-
-
-#Given that we call these line right after the "for", we can comment them
-#network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
-#PowerModelsACDC.process_additional_data!(network_data)
-
-
 #Idea : We run a for k = 1:N, so we run N times a simulation in which we modify the initial situation to observe the Evolution of a parameter.
-
 s = Dict("output" => Dict("branch_flows" => true), "conv_losses_mp" => true)
-
 A1 = []
 A2 = []
 A3 = []
@@ -94,60 +33,39 @@ A4 = []
 A5 = []
 
 
-for j=1:2
-    network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
+for j=0.2:0.2:3
+    local network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
     PowerModelsACDC.process_additional_data!(network_data)
-    network_data["gen"]["1"]["pmax"] = j/2
-    network_data["gen"]["1"]["pg"]=1
-
+    network_data["load"]["7"]["pd"] = j/2
+    network_data["load"]["4"]["pd"] = j/2
     result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
-    L1 = copy(length(network_data["ne_branch"]))
 
-    b=1
+    new_lines = count_new_lines(network_data, result) #this function return the number of branches (AC or DC) that are going to be build
+    uptdate_network(network_data, result) #This function define in another file will uptdate the network based on the result of the TNEP. For example, if a DC_branch should be build according to the result of TNEP, then it will be added to the network as an effective branch.
 
-    for k = 1:L1
-    #looking through each possible branch if one must be build or not. We do not want two branch linking the same buses.
-       if result["solution"]["ne_branch"]["$k"]["built"] ==1
-            f = network_data["ne_branch"]["$k"]["f_bus"]
-            t = network_data["ne_branch"]["$k"]["t_bus"]
-            if Is_there_already_an_AC_branc(f,t,network_data) == false
-                build_new_AC_branch(f,t,network_data,b,k)
-                b=b+1
-            end
-       end
-    end
-
-    L2 = copy(length(network_data["branchdc_ne"]))
-    b=1
-
-    for k = 1:L2
-        if result["solution"]["branchdc_ne"]["$k"]["isbuilt"]== 1
-            f = network_data["branchdc_ne"]["$k"]["fbusdc"]
-            t = network_data["branchdc_ne"]["$k"]["tbusdc"]       
-            if Is_there_already_a_DC_branc(f,t,network_data) == false
-                build_new_DC_branch(f,t,network_data,b,k)
-                b=b+1
-            end
-        end
-    end
     #So, we built the branchs we wanted to built based on a economic point of view (TNEP). lets optmize their use by doing an OPF.
-
     resultOPF = run_acdcopf(network_data, DCPPowerModel, minlp_solver; setting = s)
-    push!(A1, network_data["gen"]["1"]["pmax"])
-    push!(A2,resultOPF["solution"]["branch"]["1"]["pf"])
+
+    #index, max_power_line = max_power_line(resultOPF) #for the line with the max power flowing through this function return the index of the line and the power flowing through 
+
+    push!(A1, network_data["load"]["7"]["pd"])
+    push!(A2, network_data["load"]["4"]["pd"])
     push!(A3,resultOPF["solution"]["branch"]["2"]["pf"])
-    push!(A4,resultOPF["solution"]["branch"]["3"]["pf"])
-    push!(A5,resultOPF["solution"]["branchdc"]["1"]["pf"])
+    push!(A4,result["objective"])
+    push!(A5,resultOPF["objective"])
+    println(j)
+
 end
 
+#plot(A1,[A2 A3 A4])
+#title!("Evolution of some varialbe in function of a parameter (we need to decide which parameter)")
+#xlabel!("The initial value of the parameter")
+#ylabel!("The final value of somes variables")
 
-plot(A1,[A2 A3 A4])
-title!("Evolution of some varialbe in function of a parameter (we need to decide which parameter)")
-xlabel!("The initial value of the parameter")
-ylabel!("The final value of somes variables")
-
-
-
-
+p1 = plot(A1[1:length(A4)], A4, title = "Cost of investment (TNEP) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€)")
+p2 = plot(A1[1:length(A5)], A5, title = "Cost of functionnement (OPF) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€/MWh)")
+p3 = plot(A2[1:length(A4)], A4, title = "Cost of investment (TNEP) in function of load of bus 4", xlabel = "Initial value of load bus 4 (MW)", ylabel = "Cost (€)")
+p4 = plot(A2[1:length(A5)], A5, title = "Cost of functionnement (OPF) in function of load of bus 4", xlabel = "Initial value of load bus 4 (MW)", ylabel = "Cost (€/MWh)")
+plot(p1, p2, p3, p4, layout=(2,2), legend=false)
 
 #Well, we can plot quite anything but I don't really know what I should plot in function of what
