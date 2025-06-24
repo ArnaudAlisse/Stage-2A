@@ -39,29 +39,31 @@ A9 = []
 A10 = []
 
 n = 0.2
-p = 0.2
+p = 0.1
 N = 1.6
 
 
-global network_data_no_update = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
+global network_data_no_update = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy1.m")
 PowerModelsACDC.process_additional_data!(network_data_no_update)
 
-global network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
+
+global network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy1.m")
 sum_number_branch_ac = length(network_data["branch"]) + length(network_data["ne_branch"])
 sum_number_branch_dc = length(network_data["branchdc"]) + length(network_data["branchdc_ne"])
 
 
 
 Visualisation =  Dict() # This dict will allow us to stock some results and some parameters, and then do useful plots.
-
 Visualisation["congestion"] = Dict()  #Congestion part
 for k = 1:sum_number_branch_ac
     Visualisation["congestion"]["AC$k"] = zeros(length(n:p:N))
+    Visualisation["congestion"]["AC$k _no_update"] = zeros(length(n:p:N))
 end
-
 for k = 1:sum_number_branch_dc
     Visualisation["congestion"]["DC$k"] = zeros(length(n:p:N))
+    Visualisation["congestion"]["DC$k _no_update"] = zeros(length(n:p:N))
 end
+
 
 Visualisation["Power_demand"] = Dict() 
 Visualisation["Power_demand"]["total_pd"] = zeros(length(n:p:N))
@@ -74,21 +76,19 @@ Visualisation["Power_generated"]["Max_pg"] = ones(length(n:p:N))*sum(network_dat
 global count = 1
 
 for j=n:p:N #n is the initial value, p is the pas (don't know the word in english sorry), N the final value. We use it again later so modify the value above if needed but not this line.  
-    global network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy.m")
+    global network_data = PowerModels.parse_file("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\toy1.m")
     PowerModelsACDC.process_additional_data!(network_data)
     
     
     network_data["load"]["7"]["pd"] = j/2
     network_data["load"]["4"]["pd"] = 0.4
-
     network_data_no_update["load"]["7"]["pd"] = j/2
     network_data_no_update["load"]["4"]["pd"] = 0.4
-    result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
 
-    new_lines = count_new_lines(network_data, result) #This function return the number of branches (AC or DC) that are going to be build
+    result = PowerModelsACDC.run_acdctnepopf(network_data, DCPPowerModel, minlp_solver; setting = s)
+    new_lines_AC, new_lines_DC = count_new_lines(network_data, result) #This function return the number of branches (AC or DC) that are going to be build
     uptdate_network(network_data, result) #This function define in another file will uptdate the network based on the result of the TNEP. For example, if a DC_branch should be build according to the result of TNEP, then it will be added to the network as an effective branch.
     
-
     #So, we built the branchs we wanted to built based on a economic point of view (TNEP). lets optmize their use by doing an OPF.
     resultOPF = run_acdcopf(network_data, DCPPowerModel, minlp_solver; setting = s)
     resultOPF_no_update = run_acdcopf(network_data_no_update, DCPPowerModel, minlp_solver; setting = s)
@@ -98,6 +98,12 @@ for j=n:p:N #n is the initial value, p is the pas (don't know the word in englis
     C1 = Who_is_near_congestion_AC(network_data, resultOPF)
     C2 = Who_is_near_congestion_DC(network_data, resultOPF)
 
+    if resultOPF_no_update["termination_status"] == LOCALLY_SOLVED
+        C3 = Who_is_near_congestion_AC(network_data, resultOPF_no_update)
+        C4 = Who_is_near_congestion_DC(network_data, resultOPF_no_update)
+    end
+    
+    
 
     for k = 1:length(C1)
         Visualisation["congestion"]["AC$k"][count] = C1[k]
@@ -106,7 +112,15 @@ for j=n:p:N #n is the initial value, p is the pas (don't know the word in englis
     for k = 1:length(C2)
         Visualisation["congestion"]["DC$k"][count] = C2[k]
     end
+    if resultOPF_no_update["termination_status"] == LOCALLY_SOLVED
+        for k = 1:length(C3)
+            Visualisation["congestion"]["AC$k _no_update"][count] = C3[k]
+        end
 
+        for k = 1:length(C4)
+            Visualisation["congestion"]["DC$k _no_update"][count] = C4[k]
+        end
+    end
 
     index_min, index_max, max_flow, min_flow = max_power_line(resultOPF) #for the line with the max power flowing through this function return the index of the line and the power flowing through 
 
@@ -121,54 +135,57 @@ for j=n:p:N #n is the initial value, p is the pas (don't know the word in englis
     push!(A4,result["objective"])
     push!(A5,resultOPF["objective"])
     push!(AA5,resultOPF_no_update["objective"])
-    push!(A6,C1) #row is a line, column is the ratio of the value of the power flowing through this line and of its rate_A
-    push!(A10, C2)
-    push!(A7, [min_flow,max_flow])
-    push!(A8, [index_min, index_max])
-  println(j)
-   global count = count+1
+    push!(A6, new_lines_AC)
+    push!(A7, new_lines_DC)
+    #push!(A7, [min_flow,max_flow]) #may be useful to detect the line congesting IF there is congestion
+    #push!(A8, [index_min, index_max]) #may be useful to detect the line congesting IF there is congestion
+    println(j)
+    global count = count+1
 end
 
 
 
 AC_congestion = []
+DC_congestion = []
 for k =1:sum_number_branch_ac
     push!(AC_congestion, Visualisation["congestion"]["AC$k"])
 end
-A9 = [Visualisation["Power_demand"]["total_pd"], Visualisation["Power_generated"]["total_pg"], Visualisation["Power_generated"]["Max_pg"]]
-  
+for k =1:sum_number_branch_dc
+    push!(DC_congestion, Visualisation["congestion"]["DC$k"])
+end
 
-B10 = []
-B11 = []
-B12 = []
-B13 = []
-
-for k = 1:length(n:p:N) #given push is making vector, we can't really use directely in plot, the values are not in the good order. In term of matrix we need to take its transposed.
-    push!(B10,A7[k][1])
-    push!(B11,A7[k][2])
-    push!(B12,A8[k][1])
-    push!(B13,A8[k][2])
+AC_congestion_no_update = []
+DC_congestion_no_update = []
+for k =1:sum_number_branch_ac
+    push!(AC_congestion_no_update, Visualisation["congestion"]["AC$k _no_update"])
+end
+for k =1:sum_number_branch_dc
+    push!(DC_congestion_no_update, Visualisation["congestion"]["DC$k _no_update"])
 end
 
 
-p1 = scatter(A1, A4, title = "Cost of investment (TNEP) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+
+A9 = [Visualisation["Power_demand"]["total_pd"], Visualisation["Power_generated"]["total_pg"], Visualisation["Power_generated"]["Max_pg"]]
+  
+
+
+
+p1 = scatter(A1, A4, label ="" ,title = "Cost of investment (TNEP) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
 plot!(A1, A4, label = "")
 p2 = scatter(A1, [A5, AA5], label = ["with update" "without uptdate"] ,title = "Cost of functionnement (OPF) in function of load of bus 7", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Cost (€/MWh)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
 plot!(A1, [A5, AA5], label = "")
-p3 = plot(A1, AC_congestion, title = "Is a line near congestion?", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Power demand/rate_A", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
-p4 = plot(A1, [B10,B11], label = ["min" "max"], title = "Min and Max power flowing through lines", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Min and Max (MWh)", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
-p5 = plot(A1, [B12,B13],label = ["index_min" "index_max"], title = "index of branch for min and max power", xlabel = "Initial value of load bus 7 (MW)", ylabel = "index", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
-p6 = plot(A1, A9 ,label = ["total_pd" "total_pg" "Maximum generated power"] , title = "Total power demand and power generated", xlabel = "Initial value of load bus 7 (MW)", ylabel = "MWh", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p3 = plot(A1, [AC_congestion, DC_congestion],label = ["AC lines DC lines"], title = "Is a line near congestion?", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Power demand/rate_A", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p3_no_update = plot(A1, [AC_congestion_no_update, DC_congestion_no_update],label = ["AC lines DC lines"], title = "Is a line near congestion? (network not updated)", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Power demand/rate_A", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p4 = plot(A1, [A6, A7], label = ["New lines AC" "New lines DC "], title = "Number of lines built", xlabel = "Initial value of load bus 7 (MW)", ylabel = "Number of lines built", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
+p5 = plot(A1, A9 ,label = ["total power demand" "total power generated" "Maximum generated power"] , title = "Total power demand and power generated", xlabel = "Initial value of load bus 7 (MW)", ylabel = "MWh", titlefont = font(11,"Computer Modern"),guidefont = font(9,"Computer Modern"))
 
-plot(p1, p2, p3,p6, layout=(2,2), legend=true,size=(1400,1100))
+plot(p1, p2, p3, p3_no_update,p4 ,p5, layout=(3,2), legend=true,size=(1400,1100))
 
 
 #Well, we can plot quite anything but I don't really know what I should plot in function of what
 
 
-#savefig("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\screen\\plot.png")
+#savefig("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\screen\\plot1.png")
 
-#Little issue, for each iteration we are building 3 AC branchs, not necessarily the sames branches (buses are differents). But on the plot we can't really differents two build branchs from another. So we can just monitor that we are far from the critical value of one.
-#Would be nice to have a plot for the congestion of the DC line
 
 
