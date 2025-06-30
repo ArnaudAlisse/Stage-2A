@@ -199,7 +199,7 @@ plot(p1, p2, p3,p4 ,p5, p6, layout=(3,2) ,size=(1400,1100))
 
 #savefig("C:\\Users\\33781\\OneDrive\\Documents\\STAGE 2A\\screen\\plot3.png")
 
-#Little issue, for each iteration we are building 3 AC branchs, not necessarily the sames branches (buses are differents). But on the plot we can't really differents two build branchs from another. So we can just monitor that we are far from the critical value of one.
-#Would be nice to have a plot for the congestion of the DC line
+#Okay what is going on, it's possible to do superconducting OPF, but it's superconducting TNEP has not been added yet.
+#We can't just set superconducting cable and say if it's better or not given that it will not be comparable and there will be no certitude that the given structure is the optimal structure.
 
 
