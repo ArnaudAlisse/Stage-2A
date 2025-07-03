@@ -13,3 +13,9 @@ Then, there is the two julia files "Toy, TNEP& OPF" and "some functions". The fi
 "Some functions" is as its name says a file where I wrote useful functions the simulation.
 
 
+The goal of this simulation is to know which structure of network is optimal, which cable should be used between which buses.. I tried to make it easy to understand with a lot of comments in order to also make it a door to learn some features of PowerModels or PowerModelsACDC.
+
+Feel free to modify anything you want, I'm sure these files can be improved a lot but I lack the knowledge to do so.
+
+Best regards,
+Arnaud
