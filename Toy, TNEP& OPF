@@ -24,7 +24,7 @@ minlp_solver = JuMP.optimizer_with_attributes(
     "log_levels"=>[],
 )
 
-#Idea : We run a for k = 1:N, so we run N times a simulation in which we modify the initial situation to observe the Evolution of a parameter.
+#We run N times a simulation in which we modify the initial situation to observe the evolution of a parameters.
 s = Dict("output" => Dict("branch_flows" => true), "conv_losses_mp" => true)
 A1 = []
 A2 = []
@@ -103,7 +103,7 @@ for j=n:p:N #n is the initial value, p is the pas (don't know the word in englis
     resultOPF_no_update = run_acdcopf(network_data_no_update, DCPPowerModel, minlp_solver; setting = s)
 
 
-    total_pd, total_qd, total_pg, total_qg = total_demand_and_generation(network_data,resultOPF) #Mais c'est totalement con de regarder network_data et pas result OPF, network_data c'est les conditions initiales, pas resultOPF. Bougre d'ane
+    total_pd, total_qd, total_pg, total_qg = total_demand_and_generation(network_data,resultOPF) 
     C1 = Who_is_near_congestion_AC(network_data, resultOPF)
     C2 = Who_is_near_congestion_DC(network_data, resultOPF)
 
